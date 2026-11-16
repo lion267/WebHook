@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "deny": ["mcp__meta_fb_ads"]
+  },
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "*", "hooks": [ { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/studio/tools/studio.py\" hook" } ] }
+    ],
+    "PostToolUse": [
+      { "matcher": "*", "hooks": [ { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/studio/tools/studio.py\" hook" } ] }
+    ],
+    "SubagentStart": [
+      { "hooks": [ { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/studio/tools/studio.py\" hook" } ] }
+    ],
+    "SubagentStop": [
+      { "hooks": [ { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/studio/tools/studio.py\" hook" } ] }
+    ]
+  }
+}

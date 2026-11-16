@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ms">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Affiliate Video Studio</title>
+<style>
+:root{--bg:#0f1218;--card:#181d27;--line:#262d3b;--tx:#e6e9ef;--mut:#8b94a7;--ok:#3ecf8e;--run:#4da3ff;--wait:#f5b942;--bad:#ff6b6b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,sans-serif}
+header{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid var(--line)}
+h1{font-size:16px;margin:0}h2{font-size:13px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em;margin:0 0 10px}
+#conn{font-size:12px;color:var(--mut)}#conn i{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--bad);margin-right:6px}
+#conn.on i{background:var(--ok)}
+main{padding:16px 20px;display:grid;gap:16px;grid-template-columns:repeat(12,1fr)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+.tiles{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.tile b{display:block;font-size:26px}.tile span{color:var(--mut);font-size:12px}
+.w{grid-column:span 5}.v{grid-column:span 7}.d{grid-column:1/-1}.f{grid-column:1/-1}
+@media(max-width:900px){.w,.v{grid-column:1/-1}}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--mut);font-weight:500;font-size:12px}
+tr.job{cursor:pointer}tr.job:hover{background:#1e2430}
+.pill{padding:1px 8px;border-radius:99px;font-size:12px;border:1px solid var(--line)}
+.Running{color:var(--run)}.Completed,.COMPLETED{color:var(--ok)}.Waiting,.AWAITING_APPROVAL{color:var(--wait)}.Blocked,.Failed,.BLOCKED,.FAILED,.NEEDS_HUMAN{color:var(--bad)}.Idle{color:var(--mut)}
+.bar{height:6px;background:var(--line);border-radius:4px;overflow:hidden;min-width:80px}.bar div{height:100%;background:var(--ok)}
+.ms{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.ms span{font-size:12px;padding:2px 8px;border-radius:6px;background:#202736;color:var(--mut)}.ms span.done{background:#173a2b;color:var(--ok)}
+#feed{max-height:260px;overflow:auto;font:12px ui-monospace,monospace}#feed div{padding:2px 0;border-bottom:1px solid #1f2532}
+.mut{color:var(--mut)}.empty{color:var(--mut);padding:12px 0}
+</style>
+</head>
+<body>
+<header><h1>🎬 Affiliate Video Studio</h1><div id="conn"><i></i><span>menyambung…</span></div></header>
+<main>
+  <section class="tiles" id="tiles"></section>
+  <section class="card w"><h2>Pekerja (agent)</h2><div id="workers"></div></section>
+  <section class="card v"><h2>Video</h2><div id="jobs"></div></section>
+  <section class="card d" id="detail" hidden></section>
+  <section class="card f"><h2>Aktiviti langsung</h2><div id="feed"></div></section>
+</main>
+<script>
+const AGENTS=["production-manager","product-researcher","creative-director","video-producer","qa-specialist"];
+const MS=["research","product_approved","creative_ready","skill_invoked","video_verified","qa_pass","final_approved"];
+const $=id=>document.getElementById(id);
+const el=(t,props={},...kids)=>{const e=document.createElement(t);for(const[k,v]of Object.entries(props)){if(k==="class")e.className=v;else if(k==="onclick")e.onclick=v;else e.setAttribute(k,v)}for(const k of kids)e.append(k?.nodeType?k:String(k??""));return e};
+const j=u=>fetch(u).then(r=>r.json());
+let selected=null;
+const wstatus=t=>!t?"Idle":({running:"Running",completed:"Completed",failed:"Failed",blocked:"Blocked",pending:"Waiting"})[t.status]||"Idle";
+
+async function refresh(){
+  const [ov,jobs]=await Promise.all([j("/api/overview"),j("/api/jobs")]);
+  const tiles=[["Sasaran harian",ov.daily_target],["Siap hari ini",ov.completed_today],["Sedang dihasilkan",ov.in_production],["Gagal / tersekat",ov.blocked_or_failed],["Tunggu kelulusan",ov.awaiting_approval]];
+  $("tiles").replaceChildren(...tiles.map(([l,v])=>el("div",{class:"card tile"},el("b",{},v),el("span",{},l))));
+  const wm={};ov.workers.forEach(w=>wm[w.agent]=w);
+  $("workers").replaceChildren(el("table",{},el("tr",{},...["Agent","Status","Tugasan","Video","Aktiviti akhir"].map(h=>el("th",{},h))),
+    ...[...AGENTS,...ov.workers.map(w=>w.agent).filter(a=>!AGENTS.includes(a))].map(a=>{const w=wm[a],s=wstatus(w);return el("tr",{},el("td",{},a),el("td",{},el("span",{class:"pill "+s},s)),el("td",{},w?.task||"-"),el("td",{class:"mut"},w?.video_id||"-"),el("td",{class:"mut"},(w?.last_activity||"-").replace("T"," ").slice(0,19)))})));
+  $("jobs").replaceChildren(jobs.length?el("table",{},el("tr",{},...["ID","Produk","Peringkat","Status","Progres"].map(h=>el("th",{},h))),
+    ...jobs.map(x=>el("tr",{class:"job",onclick:()=>{selected=x.video_id;showDetail()}},el("td",{},x.video_id),el("td",{},x.product_name),el("td",{},x.stage),el("td",{},el("span",{class:"pill "+x.status},x.status)),el("td",{},el("div",{class:"bar"},el("div",{style:`width:${x.progress_pct}%`}))))))
+    :el("div",{class:"empty"},"Tiada video lagi. Mulakan dengan: Produce 5 affiliate videos today."));
+  if(selected)showDetail()
+}
+async function showDetail(){
+  const d=await j("/api/jobs/"+selected),box=$("detail");box.hidden=false;
+  const tbl=(rows,hdr)=>rows.length?el("table",{},el("tr",{},...hdr.map(h=>el("th",{},h))),...rows):el("div",{class:"empty"},"-");
+  box.replaceChildren(el("h2",{},d.video_id+" · "+d.product_name),
+    el("div",{class:"mut"},"URL: "+(d.product_url||"-")+" · Fail akhir: "+(d.final_path||"belum ada")),
+    el("div",{class:"ms"},...MS.map(m=>el("span",{class:d.milestones[m]?"done":"",title:d.milestones[m]?.evidence||""},(d.milestones[m]?"✓ ":"")+m))),
+    d.blockers.length?el("div",{class:"Failed"},"Halangan: "+d.blockers.join("; ")):"",
+    el("h2",{},"Tugasan"),tbl(d.tasks.map(t=>el("tr",{},el("td",{},t.name),el("td",{},t.agent),el("td",{},t.status),el("td",{},t.attempts),el("td",{class:"mut"},t.error||""))),["Tugasan","Agent","Status","Cubaan","Ralat"]),
+    el("h2",{},"Kelulusan & aset"),tbl([...d.approvals.map(a=>el("tr",{},el("td",{},"kelulusan"),el("td",{},a.gate+": "+a.decision),el("td",{class:"mut"},a.ts))),...d.assets.map(a=>el("tr",{},el("td",{},"aset"),el("td",{},a.kind+" "+a.path),el("td",{class:"mut"},a.created_at)))],["Jenis","Butiran","Masa"]),
+    el("h2",{},"Garis masa"),tbl(d.events.slice().reverse().map(e=>el("tr",{},el("td",{class:"mut"},e.ts.slice(11,19)),el("td",{},e.agent||""),el("td",{},e.event),el("td",{class:"mut"},(e.detail||"").slice(0,160)),el("td",{class:"mut"},e.source))),["Masa","Agent","Event","Butiran","Sumber"]))
+}
+function addFeed(e){const f=$("feed");f.prepend(el("div",{},`${e.ts.slice(11,19)} [${e.source}] ${e.agent||"-"} · ${e.event}${e.video_id?" · "+e.video_id:""}${e.detail?" — "+e.detail.slice(0,120):""}`));while(f.children.length>200)f.lastChild.remove()}
+let t;const later=()=>{clearTimeout(t);t=setTimeout(()=>refresh().catch(()=>{}),400)};
+function connect(){
+  const es=new EventSource("/api/stream?after=0");
+  es.onopen=()=>{$("conn").className="on";$("conn").lastChild.textContent="bersambung (langsung)"};
+  es.addEventListener("studio",m=>{addFeed(JSON.parse(m.data));later()});
+  es.onerror=()=>{$("conn").className="";$("conn").lastChild.textContent="terputus, cuba semula…"};
+}
+refresh().catch(e=>$("conn").lastChild.textContent="ralat API: "+e);connect();setInterval(()=>refresh().catch(()=>{}),15000);
+</script>
+</body>
+</html>
